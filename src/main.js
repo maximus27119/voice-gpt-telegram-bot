@@ -6,46 +6,54 @@ import { openAIClient } from './openai.js';
 import { code } from 'telegraf/format';
 import { removeFile } from './utils.js';
 
-const INITIAL_SESSION = {
-  messages: []
-};
+const INITIAL_SESSION = { messages: [] };
+const BOT_TOKEN = config.get('TELEGRAM_BOT_TOKEN');
+const RESPONSE_WAIT_MESSAGE = `The message is accepted. Waiting for server's response...`;
+const NEW_SESSION_MESSAGE = `A new session is created. I'm waiting for your voice/text message.`;
+const START_MESSAGE = `I'm waiting for your voice/text message.`;
 
-const bot = new Telegraf(config.get('TELEGRAM_BOT_TOKEN'));
-
+const bot = new Telegraf(BOT_TOKEN);
 bot.use(session());
+
+const processUserTextMessage = async (ctx, content) => {
+  ctx.session ??= INITIAL_SESSION;
+
+  const userMessage = { role: openAIClient.roles.USER, content };
+  ctx.session.messages.push(userMessage);
+
+  const response = await openAIClient.chat(ctx.session.messages);
+
+  const assistantMessage = response.content;
+  ctx.session.messages.push({ role: openAIClient.roles.ASSISTANT, content: assistantMessage });
+
+  await ctx.reply(assistantMessage);
+};
 
 bot.command('new', async (ctx) => {
   ctx.session = INITIAL_SESSION;
-  await ctx.reply(`A new session is created. I'm waiting for your voice/text message.`);
+  await ctx.reply(NEW_SESSION_MESSAGE);
 });
 
 bot.command('start', async (ctx) => {
   ctx.session = INITIAL_SESSION;
-  await ctx.reply(`I'm waiting for your voice/text message.`);
+  await ctx.reply(START_MESSAGE);
 });
 
 bot.on(message('text'), async (ctx) => {
   ctx.session ??= INITIAL_SESSION;
   try {
-    const userSessionItem = { role: openAIClient.roles.USER, content: ctx.message.text };
-    ctx.session.messages.push(userSessionItem);
-
-    const response = await openAIClient.chat(ctx.session.messages);
-
-    const assistantMessage = response.content;
-    const assistantSessionItem = { role: openAIClient.roles.ASSISTANT, content: assistantMessage };
-    ctx.session.messages.push(assistantSessionItem);
-
-    await ctx.reply(assistantMessage);
-  } catch (e) {
-    console.error('Error while text chatting.', e.message);
+    await processUserTextMessage(ctx, ctx.message.text);
+  } catch (error) {
+    console.error('Error while processing text message:', error.message);
   }
 });
 
 bot.on(message('voice'), async (ctx) => {
   ctx.session ??= INITIAL_SESSION;
+
+  let loadingMessage;
   try {
-    const loadingMessage = await ctx.reply(code(`The message is accepted. Waiting for server's response...`));
+    loadingMessage = await ctx.reply(code(RESPONSE_WAIT_MESSAGE));
 
     const voiceFileLink = await ctx.telegram.getFileLink(ctx.message.voice.file_id);
     const userId = String(ctx.message.from.id);
@@ -53,23 +61,15 @@ bot.on(message('voice'), async (ctx) => {
     const oggPath = await ogg.create(voiceFileLink.href, userId);
     const mp3Path = await ogg.toMP3(oggPath, userId);
 
-    const text = await openAIClient.transcription(mp3Path);
-    await ctx.reply(code(`Your request is: ${text}`));
+    const transcribedText = await openAIClient.transcription(mp3Path);
+    await ctx.reply(code(`Your request is: ${transcribedText}`));
     await removeFile(mp3Path);
 
-    const userSessionItem = { role: openAIClient.roles.USER, content: text };
-    ctx.session.messages.push(userSessionItem);
-
-    const response = await openAIClient.chat(ctx.session.messages);
-
-    const assistantMessage = response.content;
-    const assistantSessionItem = { role: openAIClient.roles.ASSISTANT, content: assistantMessage };
-    ctx.session.messages.push(assistantSessionItem);
-
-    await ctx.reply(assistantMessage);
-    await ctx.telegram.deleteMessage(ctx.chat.id, loadingMessage.message_id);
-  } catch (e) {
-    console.error('Error while voice parsing.', e.message);
+    await processUserTextMessage(ctx, transcribedText);
+  } catch (error) {
+    console.error('Error while processing voice message:', error.message);
+  } finally {
+    if (loadingMessage) await ctx.telegram.deleteMessage(ctx.chat.id, loadingMessage.message_id);
   }
 });
 
