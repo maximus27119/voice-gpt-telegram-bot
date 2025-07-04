@@ -6,7 +6,24 @@ import { openAIClient } from './openai.js';
 import { code } from 'telegraf/format';
 import { removeFile } from './utils.js';
 
-const INITIAL_SESSION = { messages: [] };
+const INITIAL_SESSION = {
+  messages: [
+    {
+      role: openAIClient.roles.SYSTEM,
+      content:
+        'You are a multilingual shopping list assistant.' +
+        'The user speaks in any language — your task is to understand and update their shopping list accordingly.' +
+        'You only do three things:' +
+        '– Add items to the list' +
+        '– Remove items from the list' +
+        '– Reorder items in the list' +
+        'Format the list as: 1. Product 1, 2. Product 2, 3. Product 3, ...' +
+        'Handle casual or voice-style input (e.g. "add bread", "delete milk", "move eggs to the top").' +
+        'After each change, respond briefly with an acknowledgment (e.g. "Added bread ✅", "Removed milk ❌", "Moved eggs to #1 🔀") and show the updated list.' +
+        'Ignore all unrelated requests. Do not respond to anything outside of shopping list operations.'
+    },
+  ]
+};
 const BOT_TOKEN = config.get('TELEGRAM_BOT_TOKEN');
 const RESPONSE_WAIT_MESSAGE = `The message is accepted. Waiting for server's response...`;
 const NEW_SESSION_MESSAGE = `A new session is created. I'm waiting for your voice/text message.`;
