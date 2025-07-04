@@ -1,10 +1,12 @@
 import { Telegraf, session } from 'telegraf';
 import { message } from 'telegraf/filters';
-import config from 'config';
+import dotenv from 'dotenv';
 import { ogg } from './ogg.js';
 import { openAIClient } from './openai.js';
 import { code } from 'telegraf/format';
 import { removeFile } from './utils.js';
+
+dotenv.config();
 
 const INITIAL_SESSION = {
   messages: [
@@ -24,7 +26,7 @@ const INITIAL_SESSION = {
     },
   ]
 };
-const BOT_TOKEN = config.get('TELEGRAM_BOT_TOKEN');
+const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const RESPONSE_WAIT_MESSAGE = `The message is accepted. Waiting for server's response...`;
 const NEW_SESSION_MESSAGE = `A new session is created. I'm waiting for your voice/text message.`;
 const START_MESSAGE = `I'm waiting for your voice/text message.`;

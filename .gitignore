@@ -1,6 +1,6 @@
 node_modules
 .idea
 .vscode
-config/default.json
+.env
 voices/*.mp3
 voices/*.ogg

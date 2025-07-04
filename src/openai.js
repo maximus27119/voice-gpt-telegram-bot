@@ -1,11 +1,13 @@
 import OpenAI from 'openai';
 import { createReadStream } from 'fs';
-import config from 'config';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 class OpenAIClient {
   constructor() {
     this.openai = new OpenAI({
-      apiKey: config.get('OPENAI_KEY')
+      apiKey: process.env.OPENAI_KEY
     });
 
     this.roles = {
